@@ -1180,6 +1180,35 @@ static int imx462_enum_frame_size(struct v4l2_subdev *sd,
 	return 0;
 }
 
+/* Rockchip rkcif and rkaiq enumerate by index alone and expect code and size filled in */
+static int imx462_enum_frame_interval(struct v4l2_subdev *sd,
+				      struct v4l2_subdev_state *sd_state,
+				      struct v4l2_subdev_frame_interval_enum *fie)
+{
+	const struct imx462 *imx462 = to_imx462(sd);
+	unsigned int num_formats = ARRAY_SIZE(imx462_formats);
+	const struct imx462_mode *mode;
+	unsigned long num, den;
+
+	if (fie->index >= imx462_modes_num(imx462) * num_formats)
+		return -EINVAL;
+
+	mode = &imx462_modes_ptr(imx462)[fie->index / num_formats];
+
+	fie->code = imx462_formats[fie->index % num_formats]
+			.code[imx462->model->colour_variant];
+	fie->width = mode->width;
+	fie->height = mode->height;
+
+	rational_best_approximation(mode->hmax_min * mode->vmax_min,
+				    IMX462_PIXEL_RATE, U32_MAX, U32_MAX,
+				    &num, &den);
+	fie->interval.numerator = num;
+	fie->interval.denominator = den;
+
+	return 0;
+}
+
 static int imx462_set_fmt(struct v4l2_subdev *sd,
 			  struct v4l2_subdev_state *sd_state,
 			  struct v4l2_subdev_format *fmt)
@@ -1308,6 +1337,7 @@ static const struct v4l2_subdev_pad_ops imx462_pad_ops = {
 	.init_cfg = imx462_entity_init_cfg,
 	.enum_mbus_code = imx462_enum_mbus_code,
 	.enum_frame_size = imx462_enum_frame_size,
+	.enum_frame_interval = imx462_enum_frame_interval,
 	.get_fmt = v4l2_subdev_get_fmt,
 	.set_fmt = imx462_set_fmt,
 	.get_selection = imx462_get_selection,
