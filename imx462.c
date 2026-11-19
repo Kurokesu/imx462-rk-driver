@@ -280,7 +280,6 @@ static const struct imx290_regval imx290_global_init_settings[] = {
 	{ IMX290_WINWV, 1097 },
 	{ IMX290_XSOUTSEL, IMX290_XSOUTSEL_XVSOUTSEL_VSYNC |
 			   IMX290_XSOUTSEL_XHSOUTSEL_HSYNC },
-	{ IMX290_REG_8BIT(0x3011), 0x02 },
 	{ IMX290_REG_8BIT(0x3012), 0x64 },
 	{ IMX290_REG_8BIT(0x3013), 0x00 },
 };
@@ -288,6 +287,7 @@ static const struct imx290_regval imx290_global_init_settings[] = {
 static const struct imx290_regval imx290_global_init_settings_290[] = {
 	{ IMX290_REG_8BIT(0x300f), 0x00 },
 	{ IMX290_REG_8BIT(0x3010), 0x21 },
+	{ IMX290_REG_8BIT(0x3011), 0x00 },
 	{ IMX290_REG_8BIT(0x3016), 0x09 },
 	{ IMX290_REG_8BIT(0x3070), 0x02 },
 	{ IMX290_REG_8BIT(0x3071), 0x11 },
@@ -341,6 +341,7 @@ static const struct imx290_regval xclk_regs[][IMX290_NUM_CLK_REGS] = {
 };
 
 static const struct imx290_regval imx290_global_init_settings_327[] = {
+	{ IMX290_REG_8BIT(0x3011), 0x02 },
 	{ IMX290_REG_8BIT(0x309e), 0x4A },
 	{ IMX290_REG_8BIT(0x309f), 0x4A },
 	{ IMX290_REG_8BIT(0x313b), 0x61 },
