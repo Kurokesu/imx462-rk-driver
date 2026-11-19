@@ -177,6 +177,8 @@ enum imx290_model {
 	IMX290_MODEL_IMX290LQR,
 	IMX290_MODEL_IMX290LLR,
 	IMX290_MODEL_IMX327LQR,
+	IMX290_MODEL_IMX462LQR,
+	IMX290_MODEL_IMX462LLR,
 };
 
 struct imx290_model_info {
@@ -288,6 +290,50 @@ static const struct imx290_regval imx290_global_init_settings_290[] = {
 	{ IMX290_REG_8BIT(0x300f), 0x00 },
 	{ IMX290_REG_8BIT(0x3010), 0x21 },
 	{ IMX290_REG_8BIT(0x3011), 0x00 },
+	{ IMX290_REG_8BIT(0x3016), 0x09 },
+	{ IMX290_REG_8BIT(0x3070), 0x02 },
+	{ IMX290_REG_8BIT(0x3071), 0x11 },
+	{ IMX290_REG_8BIT(0x309b), 0x10 },
+	{ IMX290_REG_8BIT(0x309c), 0x22 },
+	{ IMX290_REG_8BIT(0x30a2), 0x02 },
+	{ IMX290_REG_8BIT(0x30a6), 0x20 },
+	{ IMX290_REG_8BIT(0x30a8), 0x20 },
+	{ IMX290_REG_8BIT(0x30aa), 0x20 },
+	{ IMX290_REG_8BIT(0x30ac), 0x20 },
+	{ IMX290_REG_8BIT(0x30b0), 0x43 },
+	{ IMX290_REG_8BIT(0x3119), 0x9e },
+	{ IMX290_REG_8BIT(0x311c), 0x1e },
+	{ IMX290_REG_8BIT(0x311e), 0x08 },
+	{ IMX290_REG_8BIT(0x3128), 0x05 },
+	{ IMX290_REG_8BIT(0x313d), 0x83 },
+	{ IMX290_REG_8BIT(0x3150), 0x03 },
+	{ IMX290_REG_8BIT(0x317e), 0x00 },
+	{ IMX290_REG_8BIT(0x32b8), 0x50 },
+	{ IMX290_REG_8BIT(0x32b9), 0x10 },
+	{ IMX290_REG_8BIT(0x32ba), 0x00 },
+	{ IMX290_REG_8BIT(0x32bb), 0x04 },
+	{ IMX290_REG_8BIT(0x32c8), 0x50 },
+	{ IMX290_REG_8BIT(0x32c9), 0x10 },
+	{ IMX290_REG_8BIT(0x32ca), 0x00 },
+	{ IMX290_REG_8BIT(0x32cb), 0x04 },
+	{ IMX290_REG_8BIT(0x332c), 0xd3 },
+	{ IMX290_REG_8BIT(0x332d), 0x10 },
+	{ IMX290_REG_8BIT(0x332e), 0x0d },
+	{ IMX290_REG_8BIT(0x3358), 0x06 },
+	{ IMX290_REG_8BIT(0x3359), 0xe1 },
+	{ IMX290_REG_8BIT(0x335a), 0x11 },
+	{ IMX290_REG_8BIT(0x3360), 0x1e },
+	{ IMX290_REG_8BIT(0x3361), 0x61 },
+	{ IMX290_REG_8BIT(0x3362), 0x10 },
+	{ IMX290_REG_8BIT(0x33b0), 0x50 },
+	{ IMX290_REG_8BIT(0x33b2), 0x1a },
+	{ IMX290_REG_8BIT(0x33b3), 0x04 },
+};
+
+static const struct imx290_regval imx290_global_init_settings_462[] = {
+	{ IMX290_REG_8BIT(0x300f), 0x00 },
+	{ IMX290_REG_8BIT(0x3010), 0x21 },
+	{ IMX290_REG_8BIT(0x3011), 0x02 },
 	{ IMX290_REG_8BIT(0x3016), 0x09 },
 	{ IMX290_REG_8BIT(0x3070), 0x02 },
 	{ IMX290_REG_8BIT(0x3071), 0x11 },
@@ -1516,6 +1562,20 @@ static const struct imx290_model_info imx290_models[] = {
 		.max_analog_gain = 98,
 		.name = "imx327",
 	},
+	[IMX290_MODEL_IMX462LQR] = {
+		.colour_variant = IMX290_VARIANT_COLOUR,
+		.init_regs = imx290_global_init_settings_462,
+		.init_regs_num = ARRAY_SIZE(imx290_global_init_settings_462),
+		.max_analog_gain = 98,
+		.name = "imx462",
+	},
+	[IMX290_MODEL_IMX462LLR] = {
+		.colour_variant = IMX290_VARIANT_MONO,
+		.init_regs = imx290_global_init_settings_462,
+		.init_regs_num = ARRAY_SIZE(imx290_global_init_settings_462),
+		.max_analog_gain = 98,
+		.name = "imx462",
+	},
 };
 
 static int imx290_parse_dt(struct imx290 *imx290)
@@ -1711,6 +1771,12 @@ static const struct of_device_id imx290_of_match[] = {
 	}, {
 		.compatible = "sony,imx327lqr",
 		.data = &imx290_models[IMX290_MODEL_IMX327LQR],
+	}, {
+		.compatible = "sony,imx462lqr",
+		.data = &imx290_models[IMX290_MODEL_IMX462LQR],
+	}, {
+		.compatible = "sony,imx462llr",
+		.data = &imx290_models[IMX290_MODEL_IMX462LLR],
 	},
 	{ /* sentinel */ },
 };
