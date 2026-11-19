@@ -9,6 +9,7 @@
  */
 
 #include <linux/clk.h>
+#include <linux/compat.h>
 #include <linux/delay.h>
 #include <linux/gpio/consumer.h>
 #include <linux/i2c.h>
@@ -18,6 +19,8 @@
 #include <linux/rational.h>
 #include <linux/regmap.h>
 #include <linux/regulator/consumer.h>
+#include <linux/rk-camera-module.h>
+#include <linux/uaccess.h>
 
 #include <asm/unaligned.h>
 
@@ -243,6 +246,11 @@ struct imx462 {
 	enum imx462_clk_freq xclk_idx;
 	u8 nlanes;
 	const struct imx462_model_info *model;
+
+	u32 module_index;
+	const char *module_facing;
+	const char *module_name;
+	const char *lens_name;
 
 	struct v4l2_subdev sd;
 	struct media_pad pad;
@@ -1323,7 +1331,83 @@ static int imx462_entity_init_cfg(struct v4l2_subdev *subdev,
 	return 0;
 }
 
+static long imx462_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
+{
+	struct imx462 *imx462 = to_imx462(sd);
+	struct rkmodule_hdr_cfg *hdr;
+	struct rkmodule_inf *inf;
+
+	switch (cmd) {
+	case RKMODULE_GET_MODULE_INFO:
+		inf = arg;
+		memset(inf, 0, sizeof(*inf));
+		strscpy(inf->base.sensor, imx462->model->name,
+			sizeof(inf->base.sensor));
+		strscpy(inf->base.module, imx462->module_name,
+			sizeof(inf->base.module));
+		strscpy(inf->base.lens, imx462->lens_name,
+			sizeof(inf->base.lens));
+		return 0;
+
+	case RKMODULE_GET_HDR_CFG:
+		hdr = arg;
+		memset(hdr, 0, sizeof(*hdr));
+		hdr->hdr_mode = NO_HDR;
+		hdr->esp.mode = HDR_NORMAL_VC;
+		return 0;
+
+	case RKMODULE_SET_HDR_CFG:
+		hdr = arg;
+		return hdr->hdr_mode == NO_HDR ? 0 : -EINVAL;
+
+	default:
+		return -ENOIOCTLCMD;
+	}
+}
+
+#ifdef CONFIG_COMPAT
+static long imx462_compat_ioctl32(struct v4l2_subdev *sd, unsigned int cmd,
+				  unsigned long arg)
+{
+	void __user *up = compat_ptr(arg);
+	struct rkmodule_hdr_cfg hdr;
+	struct rkmodule_inf *inf;
+	long ret;
+
+	switch (cmd) {
+	case RKMODULE_GET_MODULE_INFO:
+		inf = kzalloc(sizeof(*inf), GFP_KERNEL);
+		if (!inf)
+			return -ENOMEM;
+
+		ret = imx462_ioctl(sd, cmd, inf);
+		if (!ret && copy_to_user(up, inf, sizeof(*inf)))
+			ret = -EFAULT;
+		kfree(inf);
+		return ret;
+
+	case RKMODULE_GET_HDR_CFG:
+		ret = imx462_ioctl(sd, cmd, &hdr);
+		if (!ret && copy_to_user(up, &hdr, sizeof(hdr)))
+			ret = -EFAULT;
+		return ret;
+
+	case RKMODULE_SET_HDR_CFG:
+		if (copy_from_user(&hdr, up, sizeof(hdr)))
+			return -EFAULT;
+		return imx462_ioctl(sd, cmd, &hdr);
+
+	default:
+		return -ENOIOCTLCMD;
+	}
+}
+#endif
+
 static const struct v4l2_subdev_core_ops imx462_core_ops = {
+	.ioctl = imx462_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl32 = imx462_compat_ioctl32,
+#endif
 	.subscribe_event = v4l2_ctrl_subdev_subscribe_event,
 	.unsubscribe_event = v4l2_event_subdev_unsubscribe,
 };
@@ -1630,6 +1714,28 @@ done:
 	return ret;
 }
 
+static int imx462_parse_module_info(struct imx462 *imx462)
+{
+	struct device *dev = imx462->dev;
+	int ret;
+
+	ret = device_property_read_u32(dev, RKMODULE_CAMERA_MODULE_INDEX,
+				       &imx462->module_index);
+	ret = ret ?: device_property_read_string(dev,
+						 RKMODULE_CAMERA_MODULE_FACING,
+						 &imx462->module_facing);
+	ret = ret ?: device_property_read_string(dev,
+						 RKMODULE_CAMERA_MODULE_NAME,
+						 &imx462->module_name);
+	ret = ret ?: device_property_read_string(dev,
+						 RKMODULE_CAMERA_LENS_NAME,
+						 &imx462->lens_name);
+	if (ret)
+		dev_err(dev, "Could not get camera module properties\n");
+
+	return ret;
+}
+
 static int imx462_probe(struct i2c_client *client)
 {
 	struct device *dev = &client->dev;
@@ -1648,6 +1754,10 @@ static int imx462_probe(struct i2c_client *client)
 	}
 
 	ret = imx462_parse_dt(imx462);
+	if (ret)
+		return ret;
+
+	ret = imx462_parse_module_info(imx462);
 	if (ret)
 		return ret;
 
@@ -1699,8 +1809,11 @@ static int imx462_probe(struct i2c_client *client)
 	if (ret)
 		goto err_pm;
 
-	v4l2_i2c_subdev_set_name(&imx462->sd, client,
-				 imx462->model->name, NULL);
+	/* rkaiq parses sensor from m00_b_<sensor> entity name */
+	snprintf(imx462->sd.name, sizeof(imx462->sd.name), "m%02u_%c_%s %s",
+		 imx462->module_index,
+		 strcmp(imx462->module_facing, "back") ? 'f' : 'b',
+		 imx462->model->name, dev_name(dev));
 
 	/*
 	 * Finally, register the V4L2 subdev. This must be done after
