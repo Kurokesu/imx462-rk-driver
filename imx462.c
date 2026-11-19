@@ -1695,7 +1695,7 @@ static const struct of_device_id imx462_of_match[] = {
 MODULE_DEVICE_TABLE(of, imx462_of_match);
 
 static struct i2c_driver imx462_i2c_driver = {
-	.probe = imx462_probe,
+	.probe_new = imx462_probe,
 	.remove = imx462_remove,
 	.driver = {
 		.name = "imx462",
