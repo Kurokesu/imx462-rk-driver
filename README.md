@@ -26,7 +26,10 @@ Install required tools:
 
 ```bash
 sudo apt install -y --no-install-recommends dkms
+sudo apt install -y /opt/linux-headers-current-rockchip-rk3588_*.deb
 ```
+
+*Orange Pi image carries kernel headers as local package in `/opt`.*
 
 Clone this repository:
 
