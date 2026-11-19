@@ -1245,8 +1245,8 @@ static int imx462_get_selection(struct v4l2_subdev *sd,
 		return 0;
 	}
 
+	/* No CROP_BOUNDS, Rockchip rkcif and mipi-csi2 read it as crop inside output frame */
 	case V4L2_SEL_TGT_NATIVE_SIZE:
-	case V4L2_SEL_TGT_CROP_BOUNDS:
 		sel->r.top = 0;
 		sel->r.left = 0;
 		sel->r.width = IMX462_PIXEL_ARRAY_WIDTH;
