@@ -264,6 +264,7 @@ struct imx462 {
 	struct media_pad pad;
 
 	const struct imx462_mode *current_mode;
+	struct v4l2_fract frame_interval;
 	bool hcg;
 
 	struct regulator_bulk_data supplies[IMX462_NUM_SUPPLIES];
@@ -926,21 +927,35 @@ static const char * const imx462_test_pattern_menu[] = {
 	"000/555h Toggle Pattern",
 };
 
+static u32 imx462_vmax_default(const struct imx462 *imx462,
+			       const struct imx462_mode *mode)
+{
+	const struct v4l2_fract *fi = &imx462->frame_interval;
+	u64 div = (u64)fi->denominator * mode->hmax_min;
+	u64 vmax;
+
+	vmax = div64_u64((u64)fi->numerator * IMX462_PIXEL_RATE + div / 2, div);
+
+	return clamp_t(u64, vmax, mode->vmax_min, IMX462_VMAX_MAX);
+}
+
 static void imx462_ctrl_update(struct imx462 *imx462,
 			       const struct v4l2_mbus_framefmt *format,
 			       const struct imx462_mode *mode)
 {
 	unsigned int hblank_min = mode->hmax_min - mode->width;
 	unsigned int hblank_max = IMX462_HMAX_MAX - mode->width;
-	unsigned int vblank_min = mode->vmax_min - mode->height;
+	unsigned int vblank_min = imx462_vmax_default(imx462, mode) - mode->height;
 	unsigned int vblank_max = IMX462_VMAX_MAX - mode->height;
 
 	__v4l2_ctrl_s_ctrl(imx462->link_freq, mode->link_freq_index);
 
 	__v4l2_ctrl_modify_range(imx462->hblank, hblank_min, hblank_max, 1,
 				 hblank_min);
+	/* rkaiq keeps frame length at or above VBLANK minimum, so minimum sets frame rate */
 	__v4l2_ctrl_modify_range(imx462->vblank, vblank_min, vblank_max, 1,
 				 vblank_min);
+	__v4l2_ctrl_s_ctrl(imx462->vblank, vblank_min);
 }
 
 static int imx462_ctrl_init(struct imx462 *imx462)
@@ -1152,7 +1167,7 @@ unlock:
 	return ret;
 }
 
-/* rkaiq derives VTS from this, so report mode max rate rather than VBLANK rate */
+/* rkaiq derives pixel clock from this and VBLANK minimum, so report rate at that minimum */
 static int imx462_g_frame_interval(struct v4l2_subdev *sd,
 				   struct v4l2_subdev_frame_interval *fi)
 {
@@ -1160,18 +1175,41 @@ static int imx462_g_frame_interval(struct v4l2_subdev *sd,
 	const struct imx462_mode *mode;
 	struct v4l2_subdev_state *state;
 	unsigned long num, den;
+	u32 vmax;
 
 	state = v4l2_subdev_lock_and_get_active_state(sd);
 	mode = imx462->current_mode;
+	vmax = imx462_vmax_default(imx462, mode);
 	v4l2_subdev_unlock_state(state);
 
-	rational_best_approximation(mode->hmax_min * mode->vmax_min,
+	rational_best_approximation(mode->hmax_min * vmax,
 				    IMX462_PIXEL_RATE, U32_MAX, U32_MAX,
 				    &num, &den);
 	fi->interval.numerator = num;
 	fi->interval.denominator = den;
 
 	return 0;
+}
+
+static int imx462_s_frame_interval(struct v4l2_subdev *sd,
+				   struct v4l2_subdev_frame_interval *fi)
+{
+	struct imx462 *imx462 = to_imx462(sd);
+	const struct v4l2_mbus_framefmt *format;
+	struct v4l2_subdev_state *state;
+
+	state = v4l2_subdev_lock_and_get_active_state(sd);
+
+	if (fi->interval.numerator && fi->interval.denominator)
+		imx462->frame_interval = fi->interval;
+
+	format = v4l2_subdev_get_pad_format(sd, state, 0);
+	imx462_ctrl_update(imx462, format, imx462->current_mode);
+	imx462_exposure_update(imx462, imx462->current_mode);
+
+	v4l2_subdev_unlock_state(state);
+
+	return imx462_g_frame_interval(sd, fi);
 }
 
 static int imx462_enum_mbus_code(struct v4l2_subdev *sd,
@@ -1477,6 +1515,7 @@ static const struct v4l2_subdev_core_ops imx462_core_ops = {
 
 static const struct v4l2_subdev_video_ops imx462_video_ops = {
 	.g_frame_interval = imx462_g_frame_interval,
+	.s_frame_interval = imx462_s_frame_interval,
 	.s_stream = imx462_set_stream,
 };
 
@@ -1509,6 +1548,7 @@ static int imx462_subdev_init(struct imx462 *imx462)
 	int ret;
 
 	imx462->current_mode = &imx462_modes_ptr(imx462)[0];
+	imx462->frame_interval = (struct v4l2_fract){ 1, 30 };
 
 	v4l2_i2c_subdev_init(&imx462->sd, client, &imx462_subdev_ops);
 	imx462->sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE |
