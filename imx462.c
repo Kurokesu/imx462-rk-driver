@@ -1130,6 +1130,7 @@ unlock:
 	return ret;
 }
 
+/* rkaiq derives VTS from this, so report mode max rate rather than VBLANK rate */
 static int imx462_g_frame_interval(struct v4l2_subdev *sd,
 				   struct v4l2_subdev_frame_interval *fi)
 {
@@ -1137,16 +1138,14 @@ static int imx462_g_frame_interval(struct v4l2_subdev *sd,
 	const struct imx462_mode *mode;
 	struct v4l2_subdev_state *state;
 	unsigned long num, den;
-	u64 frame_pixels;
 
 	state = v4l2_subdev_lock_and_get_active_state(sd);
 	mode = imx462->current_mode;
-	frame_pixels = (u64)(mode->width + imx462->hblank->val) *
-		       (mode->height + imx462->vblank->val);
 	v4l2_subdev_unlock_state(state);
 
-	rational_best_approximation(frame_pixels, IMX462_PIXEL_RATE,
-				    U32_MAX, U32_MAX, &num, &den);
+	rational_best_approximation(mode->hmax_min * mode->vmax_min,
+				    IMX462_PIXEL_RATE, U32_MAX, U32_MAX,
+				    &num, &den);
 	fi->interval.numerator = num;
 	fi->interval.denominator = den;
 
