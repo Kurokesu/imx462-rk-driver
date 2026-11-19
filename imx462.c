@@ -15,6 +15,7 @@
 #include <linux/module.h>
 #include <linux/of_device.h>
 #include <linux/pm_runtime.h>
+#include <linux/rational.h>
 #include <linux/regmap.h>
 #include <linux/regulator/consumer.h>
 
@@ -1121,6 +1122,29 @@ unlock:
 	return ret;
 }
 
+static int imx462_g_frame_interval(struct v4l2_subdev *sd,
+				   struct v4l2_subdev_frame_interval *fi)
+{
+	struct imx462 *imx462 = to_imx462(sd);
+	const struct imx462_mode *mode;
+	struct v4l2_subdev_state *state;
+	unsigned long num, den;
+	u64 frame_pixels;
+
+	state = v4l2_subdev_lock_and_get_active_state(sd);
+	mode = imx462->current_mode;
+	frame_pixels = (u64)(mode->width + imx462->hblank->val) *
+		       (mode->height + imx462->vblank->val);
+	v4l2_subdev_unlock_state(state);
+
+	rational_best_approximation(frame_pixels, IMX462_PIXEL_RATE,
+				    U32_MAX, U32_MAX, &num, &den);
+	fi->interval.numerator = num;
+	fi->interval.denominator = den;
+
+	return 0;
+}
+
 static int imx462_enum_mbus_code(struct v4l2_subdev *sd,
 				 struct v4l2_subdev_state *sd_state,
 				 struct v4l2_subdev_mbus_code_enum *code)
@@ -1243,6 +1267,17 @@ static int imx462_get_selection(struct v4l2_subdev *sd,
 	}
 }
 
+static int imx462_get_mbus_config(struct v4l2_subdev *sd, unsigned int pad,
+				  struct v4l2_mbus_config *config)
+{
+	struct imx462 *imx462 = to_imx462(sd);
+
+	config->type = V4L2_MBUS_CSI2_DPHY;
+	config->bus.mipi_csi2.num_data_lanes = imx462->nlanes;
+
+	return 0;
+}
+
 static int imx462_entity_init_cfg(struct v4l2_subdev *subdev,
 				  struct v4l2_subdev_state *sd_state)
 {
@@ -1265,6 +1300,7 @@ static const struct v4l2_subdev_core_ops imx462_core_ops = {
 };
 
 static const struct v4l2_subdev_video_ops imx462_video_ops = {
+	.g_frame_interval = imx462_g_frame_interval,
 	.s_stream = imx462_set_stream,
 };
 
@@ -1275,6 +1311,7 @@ static const struct v4l2_subdev_pad_ops imx462_pad_ops = {
 	.get_fmt = v4l2_subdev_get_fmt,
 	.set_fmt = imx462_set_fmt,
 	.get_selection = imx462_get_selection,
+	.get_mbus_config = imx462_get_mbus_config,
 };
 
 static const struct v4l2_subdev_ops imx462_subdev_ops = {
