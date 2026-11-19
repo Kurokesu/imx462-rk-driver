@@ -88,6 +88,9 @@
 #define IMX462_ADBIT2_10BIT				0x12
 #define IMX462_ADBIT2_12BIT				0x00
 #define IMX462_CHIP_ID					IMX462_REG_16BIT(0x319a)
+/* IMX462 has no model ID register, so check registers with known values */
+#define IMX462_MODEL_ID_ADDR_MSB			IMX462_REG_8BIT(0x3004)
+#define IMX462_MODEL_ID_ADDR_LSB			IMX462_REG_8BIT(0x3008)
 #define IMX462_ADBIT3					IMX462_REG_8BIT(0x31ec)
 #define IMX462_ADBIT3_10BIT				0x37
 #define IMX462_ADBIT3_12BIT				0x0e
@@ -630,7 +633,7 @@ imx462_format_info(const struct imx462 *imx462, u32 code)
  * Register access
  */
 
-static int __always_unused imx462_read(struct imx462 *imx462, u32 addr, u32 *value)
+static int imx462_read(struct imx462 *imx462, u32 addr, u32 *value)
 {
 	u8 data[3] = { 0, 0, 0 };
 	int ret;
@@ -1721,6 +1724,24 @@ done:
 	return ret;
 }
 
+static int imx462_identify(struct imx462 *imx462)
+{
+	u32 msb, lsb;
+	int ret;
+
+	ret = imx462_read(imx462, IMX462_MODEL_ID_ADDR_MSB, &msb);
+	ret = ret ?: imx462_read(imx462, IMX462_MODEL_ID_ADDR_LSB, &lsb);
+	if (ret)
+		return dev_err_probe(imx462->dev, -ENODEV,
+				     "No sensor found (%d)\n", ret);
+
+	if (msb != 0x10 || lsb != 0xa0)
+		dev_warn(imx462->dev, "Unexpected sensor id 0x%02x%02x\n",
+			 msb, lsb);
+
+	return 0;
+}
+
 static int imx462_parse_module_info(struct imx462 *imx462)
 {
 	struct device *dev = imx462->dev;
@@ -1797,6 +1818,12 @@ static int imx462_probe(struct i2c_client *client)
 	ret = imx462_power_on(imx462);
 	if (ret < 0) {
 		dev_err(dev, "Could not power on the device\n");
+		return ret;
+	}
+
+	ret = imx462_identify(imx462);
+	if (ret) {
+		imx462_power_off(imx462);
 		return ret;
 	}
 
