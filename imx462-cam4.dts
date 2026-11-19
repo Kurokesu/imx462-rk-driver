@@ -1,0 +1,14 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Copyright (c) 2026, UAB Kurokesu. All rights reserved.
+
+#define IMX462_CAM		4
+#define IMX462_I2C		i2c6
+#define IMX462_XCLR_PIN		RK_PD3
+#define IMX462_PHY		csi2_dcphy0
+#define IMX462_CSI2		mipi0_csi2
+#define IMX462_CIF		rkcif_mipi_lvds
+#define IMX462_CIF_SDITF	rkcif_mipi_lvds_sditf
+#define IMX462_ISP		rkisp1_vir0
+#define IMX462_INDEX		3
+
+#include "imx462.dtsi"

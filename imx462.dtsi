@@ -1,0 +1,98 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Copyright (c) 2026, UAB Kurokesu. All rights reserved.
+/* IMX462 on Orange Pi CM5 base board camera port */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/pinctrl/rockchip.h>
+
+#define IMX462_CAT_(a, b)	a##b
+#define IMX462_CAT(a, b)	IMX462_CAT_(a, b)
+#define IMX462_CLK		IMX462_CAT(imx462_clk_cam, IMX462_CAM)
+#define IMX462_OUT		IMX462_CAT(imx462_out_cam, IMX462_CAM)
+#define IMX462_PHY_IN		IMX462_CAT(phy_in_imx462_cam, IMX462_CAM)
+
+#ifdef IMX462_MONO
+#define IMX462_COMPATIBLE	"sony,imx462llr"
+#define IMX462_MODULE		"462x-CSI-mono"
+#else
+#define IMX462_COMPATIBLE	"sony,imx462lqr"
+#define IMX462_MODULE		"462x-CSI"
+#endif
+
+&{/} {
+	IMX462_CLK: IMX462_CLK {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <37125000>;
+	};
+};
+
+&IMX462_I2C {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	imx462@1a {
+		compatible = IMX462_COMPATIBLE;
+		reg = <0x1a>;
+		clocks = <&IMX462_CLK>;
+		clock-names = "xclk";
+		clock-frequency = <37125000>;
+		reset-gpios = <&gpio1 IMX462_XCLR_PIN GPIO_ACTIVE_LOW>;
+		vdda-supply = <&vcc_3v3_s3>;
+		vddd-supply = <&vcc_3v3_s3>;
+		vdddo-supply = <&vcc_3v3_s3>;
+		rockchip,camera-module-index = <IMX462_INDEX>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = IMX462_MODULE;
+		rockchip,camera-module-lens-name = "default";
+
+		port {
+			IMX462_OUT: endpoint {
+				remote-endpoint = <&IMX462_PHY_IN>;
+				data-lanes = <1 2>;
+				link-frequencies = /bits/ 64 <445500000 297000000>;
+			};
+		};
+	};
+};
+
+&IMX462_PHY {
+	status = "okay";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			IMX462_PHY_IN: endpoint@2 {
+				reg = <2>;
+				remote-endpoint = <&IMX462_OUT>;
+				data-lanes = <1 2>;
+			};
+		};
+	};
+};
+
+&IMX462_CSI2 {
+	status = "okay";
+};
+
+&IMX462_CIF {
+	status = "okay";
+};
+
+&IMX462_CIF_SDITF {
+	status = "okay";
+};
+
+&IMX462_ISP {
+	status = "okay";
+};
