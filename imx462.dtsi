@@ -16,10 +16,10 @@
 
 #ifdef IMX462_MONO
 #define IMX462_COMPATIBLE	"sony,imx462llr"
-#define IMX462_MODULE		"462x-CSI-mono"
+#define IMX462_MODULE		"462M-CSI"
 #else
 #define IMX462_COMPATIBLE	"sony,imx462lqr"
-#define IMX462_MODULE		"462x-CSI"
+#define IMX462_MODULE		"462C-CSI"
 #endif
 
 &{/} {
