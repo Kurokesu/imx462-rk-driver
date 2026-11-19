@@ -20,6 +20,7 @@
 #include <linux/regmap.h>
 #include <linux/regulator/consumer.h>
 #include <linux/rk-camera-module.h>
+#include <linux/rk-preisp.h>
 #include <linux/uaccess.h>
 
 #include <asm/unaligned.h>
@@ -50,6 +51,8 @@
 #define IMX462_WINMODE_720P				(1 << 4)
 #define IMX462_WINMODE_CROP				(4 << 4)
 #define IMX462_FR_FDG_SEL				IMX462_REG_8BIT(0x3009)
+#define IMX462_FRSEL_60FPS				0x01
+#define IMX462_FDG_HCG					BIT(4)
 #define IMX462_BLKLEVEL					IMX462_REG_16BIT(0x300a)
 #define IMX462_GAIN					IMX462_REG_8BIT(0x3014)
 #define IMX462_VMAX					IMX462_REG_24BIT(0x3018)
@@ -259,6 +262,7 @@ struct imx462 {
 	struct media_pad pad;
 
 	const struct imx462_mode *current_mode;
+	bool hcg;
 
 	struct regulator_bulk_data supplies[IMX462_NUM_SUPPLIES];
 	struct gpio_desc *rst_gpio;
@@ -713,13 +717,18 @@ static int imx462_set_clock(struct imx462 *imx462)
 	return ret;
 }
 
+static u32 imx462_fr_fdg_sel(const struct imx462 *imx462)
+{
+	return IMX462_FRSEL_60FPS | (imx462->hcg ? IMX462_FDG_HCG : 0);
+}
+
 static int imx462_set_data_lanes(struct imx462 *imx462)
 {
 	int ret = 0;
 
 	imx462_write(imx462, IMX462_PHY_LANE_NUM, imx462->nlanes - 1, &ret);
 	imx462_write(imx462, IMX462_CSI_LANE_MODE, imx462->nlanes - 1, &ret);
-	imx462_write(imx462, IMX462_FR_FDG_SEL, 0x01, &ret);
+	imx462_write(imx462, IMX462_FR_FDG_SEL, imx462_fr_fdg_sel(imx462), &ret);
 
 	return ret;
 }
@@ -1341,6 +1350,39 @@ static int imx462_entity_init_cfg(struct v4l2_subdev *subdev,
 	return 0;
 }
 
+/* Set by rkaiq when IQ enables CISDcgSet, REGHOLD applies it on frame boundary */
+static int imx462_set_conversion_gain(struct imx462 *imx462, u32 cg)
+{
+	struct v4l2_subdev_state *state;
+	bool hcg = cg == GAIN_MODE_HCG;
+	int ret = 0;
+
+	if (cg != GAIN_MODE_LCG && cg != GAIN_MODE_HCG)
+		return -EINVAL;
+
+	state = v4l2_subdev_lock_and_get_active_state(&imx462->sd);
+
+	if (hcg == imx462->hcg)
+		goto unlock;
+
+	imx462->hcg = hcg;
+
+	/* Applied at stream start when sensor is off */
+	if (!pm_runtime_get_if_in_use(imx462->dev))
+		goto unlock;
+
+	imx462_write(imx462, IMX462_REGHOLD, 0x01, &ret);
+	imx462_write(imx462, IMX462_FR_FDG_SEL, imx462_fr_fdg_sel(imx462), &ret);
+	imx462_write(imx462, IMX462_REGHOLD, 0x00, NULL);
+
+	pm_runtime_mark_last_busy(imx462->dev);
+	pm_runtime_put_autosuspend(imx462->dev);
+
+unlock:
+	v4l2_subdev_unlock_state(state);
+	return ret;
+}
+
 static long imx462_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 {
 	struct imx462 *imx462 = to_imx462(sd);
@@ -1370,6 +1412,9 @@ static long imx462_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 		hdr = arg;
 		return hdr->hdr_mode == NO_HDR ? 0 : -EINVAL;
 
+	case RKMODULE_SET_CONVERSION_GAIN:
+		return imx462_set_conversion_gain(imx462, *(u32 *)arg);
+
 	default:
 		return -ENOIOCTLCMD;
 	}
@@ -1382,6 +1427,7 @@ static long imx462_compat_ioctl32(struct v4l2_subdev *sd, unsigned int cmd,
 	void __user *up = compat_ptr(arg);
 	struct rkmodule_hdr_cfg hdr;
 	struct rkmodule_inf *inf;
+	u32 cg;
 	long ret;
 
 	switch (cmd) {
@@ -1406,6 +1452,11 @@ static long imx462_compat_ioctl32(struct v4l2_subdev *sd, unsigned int cmd,
 		if (copy_from_user(&hdr, up, sizeof(hdr)))
 			return -EFAULT;
 		return imx462_ioctl(sd, cmd, &hdr);
+
+	case RKMODULE_SET_CONVERSION_GAIN:
+		if (copy_from_user(&cg, up, sizeof(cg)))
+			return -EFAULT;
+		return imx462_ioctl(sd, cmd, &cg);
 
 	default:
 		return -ENOIOCTLCMD;
