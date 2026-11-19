@@ -1,5 +1,6 @@
 # IMX462 kernel driver for Rockchip
 
+[![Version](https://img.shields.io/github/v/tag/Kurokesu/imx462-rk-driver?sort=semver&filter=v*&include_prereleases)](https://github.com/Kurokesu/imx462-rk-driver/tags)
 [![Kernel 6.1.99-rockchip-rk3588](https://img.shields.io/badge/kernel-6.1.99--rockchip--rk3588-brightgreen?logo=linux&logoColor=white)](https://github.com/orangepi-xunlong/linux-orangepi/tree/orange-pi-6.1-rk35xx)
 
 Rockchip vendor kernel driver for Sony IMX462, a 2 MP 1/2.8" STARVIS back-side illuminated CMOS sensor optimized for low-light and night-vision applications.
