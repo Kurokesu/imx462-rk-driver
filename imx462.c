@@ -6,6 +6,8 @@
  *
  * Copyright (C) 2019 Linaro Ltd.
  * Author: Manivannan Sadhasivam <manivannan.sadhasivam@linaro.org>
+ *
+ * Copyright (C) 2026 UAB Kurokesu
  */
 
 #include <linux/clk.h>
@@ -1974,4 +1976,5 @@ module_i2c_driver(imx462_i2c_driver);
 MODULE_DESCRIPTION("Sony IMX462 CMOS Image Sensor Driver");
 MODULE_AUTHOR("FRAMOS GmbH");
 MODULE_AUTHOR("Manivannan Sadhasivam <manivannan.sadhasivam@linaro.org>");
+MODULE_AUTHOR("Danius Kalvaitis <danius@kurokesu.com>");
 MODULE_LICENSE("GPL v2");
